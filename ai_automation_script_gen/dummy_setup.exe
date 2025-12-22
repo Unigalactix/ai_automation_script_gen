@@ -1,0 +1,4 @@
+This is a dummy installer file.
+It contains the string /S to trick the analyzer.
+And maybe some random binary data.
+NSIS
