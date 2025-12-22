@@ -75,6 +75,8 @@ python main.py setups/heavy_app.exe --heal
 4.  It patches the code (e.g., increases timeout) and retries.
 5.  Saves the fixed version if successful.
 
+    > **Note**: The healing process creates new versioned files (e.g., `script_v1.py`, `script_v2.py`) for each attempt. This ensures your original script is preserved while allowing you to review the AI's changes history.
+
 ---
 
 ## Demo: Try it right now
