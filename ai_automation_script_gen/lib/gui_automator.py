@@ -1,83 +1,52 @@
 import logging
-import time
-try:
-    from pywinauto import Desktop, Application
-except ImportError:
-    Desktop = None
-    Application = None
-    logging.warning("pywinauto not installed. GUI automation features disabled.")
+import subprocess
+import json
+import os
 
 class GuiAutomator:
     def __init__(self, exe_path):
         self.exe_path = exe_path
-        self.app = None
+        self.ps_script = os.path.join(os.path.dirname(__file__), "ui_inspector.ps1")
 
     def launch(self):
-        if not Application:
-            raise RuntimeError("pywinauto is required for GUI automation")
-        
-        logging.info(f"Launching GUI installer: {self.exe_path}")
-        try:
-            self.app = Application(backend="uia").start(self.exe_path)
-            # wait for window to appear
-            time.sleep(2) 
-            return True
-        except Exception as e:
-            logging.error(f"Failed to launch app: {e}")
-            return False
+        # We don't maintain a persistent python object anymore
+        # The logic is handled per-inspection in the PS script for this hybrid MVP
+        pass
 
     def get_ui_hierarchy(self):
         """
-        Captures the current state of the active window.
-        Returns a simplified JSON-like dict of controls.
+        Calls the PowerShell script to get the UI tree.
         """
-        if not self.app:
-            return {}
-
-        hierarchy = []
+        cmd = ["powershell", "-ExecutionPolicy", "Bypass", "-File", self.ps_script, "-ProcessPath", self.exe_path]
+        
+        print(f"DEBUG: Running PowerShell introspection...")
+        
         try:
-            # Connect to the likely top window
-            dlg = self.app.top_window()
+            # Run PowerShell
+            result = subprocess.run(cmd, capture_output=True, text=True, timeout=15)
             
-            # Simple recursive dumper or just list interactive elements
-            # For AI context, we need labels (text), control types, and identifiers
-            for child in dlg.descendants():
-                try:
-                    element_info = {
-                        "title": child.window_text(),
-                        "class": child.friendly_class_name(),
-                        "control_type": child.element_info.control_type,
-                        "enabled": child.is_enabled(),
-                        "visible": child.is_visible()
-                    }
-                    if element_info["visible"]: # Filter out invisible noise
-                        hierarchy.append(element_info)
-                except Exception:
-                    continue
-                    
+            # Parse output. The PS script prints JSON lines. 
+            # We need to clean up the output to make it valid JSON list
+            output_lines = result.stdout.strip().split('\n')
+            
+            # Simple parser for the MVP output format
+            hierarchy = []
+            for line in output_lines:
+                line = line.strip()
+                if line.startswith("{"):
+                    try:
+                        data = json.loads(line)
+                        hierarchy.append(data)
+                    except json.JSONDecodeError:
+                        pass
+            
+            return hierarchy
+
         except Exception as e:
             logging.error(f"Error reading UI hierarchy: {e}")
-
-        return hierarchy
+            return []
 
     def perform_action(self, action_type, selector):
-        """
-        Executes an action based on AI decision.
-        action_type: 'click', 'type'
-        selector: {'title': 'Next', 'control_type': 'Button'}
-        """
-        if not self.app: 
-            return False
-            
-        try:
-            dlg = self.app.top_window()
-            # Simple title matching for MVP
-            if 'title' in selector:
-                ctrl = dlg.child_window(title=selector['title'], control_type=selector.get('control_type'))
-                if action_type == 'click':
-                    ctrl.click_input()
-                    return True
-        except Exception as e:
-            logging.error(f"Action failed: {e}")
-            return False
-        return False
+        # In a generic PS implementation, current MVP doesn't support interactive driving from Python
+        # It generates the full PS script at once.
+        pass
