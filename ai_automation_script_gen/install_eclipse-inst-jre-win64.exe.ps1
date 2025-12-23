@@ -5,8 +5,8 @@
     Platform: PowerShell (Native)
 #>
 
-$InstallerPath = "C:\Users\RajeshKodaganti(Quad\Downloads\GITHUB\DEMO-3\ai_automation_script_gen\setups\dummy_setup.exe"
-$InstallCmd = '"C:\Users\RajeshKodaganti(Quad\Downloads\GITHUB\DEMO-3\ai_automation_script_gen\setups\dummy_setup.exe" /S'
+$InstallerPath = "C:\Users\RajeshKodaganti(Quad\Downloads\GITHUB\DEMO-3\ai_automation_script_gen\setups\eclipse-inst-jre-win64.exe"
+$InstallCmd = '"C:\Users\RajeshKodaganti(Quad\Downloads\GITHUB\DEMO-3\ai_automation_script_gen\setups\eclipse-inst-jre-win64.exe" /S'
 
 Write-Host "Checking installer existence at: $InstallerPath"
 if (-not (Test-Path $InstallerPath)) {

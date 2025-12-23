@@ -1,18 +1,47 @@
 # AI-Driven Automation Script Generator
 
 ## Overview
-This tool automates the creation of Python scripts for installing, verifying, and maintaining Windows desktop applications. It is designed to solve the "Application Compatibility Testing" bottleneck by eliminating manual scripting.
+This tool automates the creation of **PowerShell** scripts for installing, verifying, and maintaining Windows desktop applications. It is designed to solve the "Application Compatibility Testing" bottleneck by eliminating manual scripting.
 
-The system uses a 3-phase approach:
-1.  **Introspection**: Analyzes the installer file to detect if it's an MSI or EXE and finds "silent install" switches (like `/qn` or `/S`).
-2.  **Generation**: Automatically writes a Python script that handles the installation process, including error checking and logging.
-3.  **Self-Healing**: If a script fails during execution (e.g., due to a timeout), the system attempts to diagnose and patch the script automatically.
+The system is **Microsoft Native Friendly**: providing Python-based orchestration that generates pure PowerShell/DOTNET automation artifacts.
+
+---
+
+## Architecture
+
+```mermaid
+graph TD
+    User[User] -->|Run python main.py| Main[main.py]
+    
+    subgraph Selection
+    Main -->|No Args| Menu[Interactive Menu]
+    Menu -->|Scan| Setups[setups/ folder]
+    Main -->|With Args| Input[Specific File]
+    end
+    
+    subgraph Analysis & Generation
+    Menu --> Input
+    Input --> Analyzer[StaticAnalyzer (introspect.py)]
+    Analyzer -->|MSI Header / EXE Strings| Props[Installer Properties]
+    Props --> Generator[ScriptGenerator (generator.py)]
+    
+    subgraph "GUI Bridge (Phase 2)"
+    Generator -->|If GUI| Automator[gui_automator.py]
+    Automator -->|Executes| PSInspector[ui_inspector.ps1]
+    PSInspector -->|Return .NET UI Tree| Automator
+    Automator -->|Events| Generator
+    end
+    
+    Generator -->|Synthesize| Output[PowerShell Script (.ps1)]
+    end
+```
 
 ---
 
 ## Prerequisites
-- **OS**: Windows 10 or 11 (Required for `pywinauto` and `msilib`).
+- **OS**: Windows 10 or 11.
 - **Python**: Version 3.10 or higher.
+- **PowerShell**: Version 5.1 or higher (Pre-installed on Windows).
 
 ## Installation
 
@@ -22,102 +51,75 @@ The system uses a 3-phase approach:
     cd ai_automation_script_gen
     ```
 
-2.  **Install Dependencies**:
-    The only external dependency is `pywinauto` for GUI automation.
-    ```bash
-    pip install -r requirements.txt
-    ```
+2.  **Dependencies**:
+    This project has **Zero External Pip Dependencies**. It relies solely on the standard library and native Windows binaries.
 
 ---
 
 ## How to Use
 
-### 1. Where to put your installers
-You can place your `.exe` or `.msi` installer files anywhere, but for simplicity, we recommend creating a `setups` folder in this directory.
-*   `C:\Path\To\Repo\setups\installer.exe`
+### 1. Place Installers
+Put your `.exe` or `.msi` files into the `setups` folder.
+*   `ai_automation_script_gen/setups/`
 
-### 2. Generating a Script
-Open your terminal (PowerShell or Command Prompt) and run:
-
-```bash
-python main.py <path_to_installer>
-```
-
-**Example:**
-```bash
-python main.py setups/7zip.msi
-```
-
-**What happens?**
-*   The tool inspects `7zip.msi`.
-*   It detects it is an MSI.
-*   It generates a file named `install_7zip.msi.py` in the current directory.
-*   It prints the analysis to the console.
-
-### 3. Running the Generated Script
-You can now use the generated script in your automation pipeline or run it manually to install the app:
+### 2. Run the Tool (Interactive Mode)
+Simply run the script without arguments to see a menu of available installers.
 
 ```bash
-python install_7zip.msi.py
+python main.py
 ```
 
-### 4. Using Self-Healing Mode
-If you are developing a script and it is failing (e.g., timing out), use the `--heal` flag.
+**Example Session:**
+```text
+No installer path provided.
+
+Available Installers in '.../setups':
+[1] dummy_setup.exe
+[2] eclipse-inst-jre-win64.exe
+
+Select an installer number (or 'q' to quit): 2
+```
+
+### 3. CLI Mode (Advanced)
+You can still target a specific file directly:
 
 ```bash
-python main.py setups/heavy_app.exe --heal
+python main.py setups/my_app.exe
 ```
 
-**What happens?**
-1.  Generates the script.
-2.  Immediately runs the script.
-3.  If it fails, it analyzes the error log.
-4.  It patches the code (e.g., increases timeout) and retries.
-5.  Saves the fixed version if successful.
+### 4. The Output
+The tool will generate a **PowerShell Script** in the current directory:
+*   `install_dummy_setup.exe.ps1`
+*   `install_eclipse-inst-jre-win64.exe.ps1`
 
-    > **Note**: The healing process creates new versioned files (e.g., `script_v1.py`, `script_v2.py`) for each attempt. This ensures your original script is preserved while allowing you to review the AI's changes history.
+You can run these scripts directly in PowerShell to perform the installation.
 
 ---
 
-## Demo: Try it right now
-The project comes with a `dummy_setup.exe` and a `demo_healing.py` to show you how it works without needing a real installer.
+## Features
 
-**Step 1: Analyze the dummy installer**
-```bash
-python main.py dummy_setup.exe
-```
-*Output: detects the `/S` flag inside the dummy file and writes `install_dummy_setup.exe.py`.*
+### Phase 1: Silent Install Detection
+*   Analyzes MSIs for `ProductCode`.
+*   Scans EXEs for known silent flags (`/S`, `/VERYSILENT`, `/qn`).
+*   Generates a wrapper script that handles logging and error codes.
 
-**Step 2: Watch Self-Healing in action**
-```bash
-python demo_healing.py
-```
-*Output: Simulates a broken script, catches the timeout, fixes it, and verify the fix works.*
+### Phase 2: Native GUI Automation
+*   For installers that *require* clicking buttons ("Next", "I Agree").
+*   Uses a custom **PowerShell Bridge** (`ui_inspector.ps1`) to access the Windows UI Automation API (System.Windows.Automation).
+*   No need for `pywinauto` or other heavy Python libraries.
 
----
-
-## Customization (For Developers)
-
-### Adding new "Silent Flags"
-If you find an installer that uses a weird flag (e.g., `/very-quiet`) that isn't detecting:
-1.  Open `lib/introspect.py`.
-2.  Add the string to the `possible_flags` list in the `_analyze_exe` method.
-
-### Tweaking GUI Logic
-If you want to change which buttons are clicked during GUI automation:
-1.  Open `lib/llm_client.py`.
-2.  Edit the `decide_next_action` method.
-3.  Add new keywords to the `priorities` list (e.g., "Install Now").
+### Phase 3: Self-Healing (Beta)
+*   The system can analyze execution logs and patch the script automatically (e.g., increasing timeouts).
+*   *Note: Currently disabled while migrating healing logic to PowerShell.*
 
 ---
 
 ## Project Structure
 
-*   `main.py`: The entry point for the tool.
+*   `main.py`: Entry point & Interactive Menu.
 *   `lib/`
-    *   `introspect.py`: Static analysis engine (looks inside files).
-    *   `generator.py`: Writes the Python code.
-    *   `healer.py`: Logic for the run-fail-fix loop.
-    *   `gui_automator.py`: `pywinauto` wrapper for driving UI.
-    *   `llm_client.py`: The decision engine (Brain).
-*   `requirements.txt`: List of python packages.
+    *   `introspect.py`: Static analysis engine.
+    *   `generator.py`: Generates the `.ps1` code.
+    *   `gui_automator.py` & `ui_inspector.ps1`: The Hybrid Python/.NET bridge for reading UI trees.
+    *   `llm_client.py`: The decision engine.
+*   `setups/`: Default folder for placing installers.
